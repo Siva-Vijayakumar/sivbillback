@@ -36,6 +36,21 @@ app.post('/add-bill', async (req, res) => {
   res.json(newBill);
 });
 
+// API to delete a specific bill by ID
+app.delete('/delete-bill/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await MilkBill.findByIdAndDelete(id);
+    if (result) {
+      res.status(200).json({ message: 'Bill deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Bill not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting bill', error });
+  }
+});
+
 // API to get a summary for the dashboard
 app.get('/dashboard', async (req, res) => {
   const bills = await MilkBill.find();
