@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,20 +17,20 @@ mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('MongoDB connected'))
-.catch((err) => console.log('MongoDB connection error:', err));
+  .then(() => console.log('MongoDB connected'))
+  .catch((err) => console.log('MongoDB connection error:', err));
 
 // User schema
 const userSchema = new mongoose.Schema({
-  username: String,
-  password: String,
+  email: { type: String, required: true, unique: true }, // Store the email
+  password: { type: String, required: true }, // Store the hashed password
 });
 
 const User = mongoose.model('User', userSchema);
 
 // Milk schema
 const milkSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Reference to the user
+  email: { type: String, required: true }, // Store the user email to link data to a user
   date: String,
   morningLiters: [Number],
   eveningLiters: [Number],
@@ -43,45 +42,63 @@ const Milk = mongoose.model('Milk', milkSchema);
 
 // User registration
 app.post('/api/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { email, password } = req.body;
+
+  // Check if the email already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return res.status(400).json({ message: 'Email already registered' });
+  }
+
+  // Hash the password
   const hashedPassword = await bcrypt.hash(password, 10);
-  const newUser = new User({ username, password: hashedPassword });
+
+  // Create a new user and save to the database
+  const newUser = new User({ email, password: hashedPassword });
   await newUser.save();
+
   res.status(201).json({ message: 'User registered successfully' });
 });
 
 // User login
 app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
-  const user = await User.findOne({ username });
-  if (!user) return res.status(400).json({ message: 'User not found' });
+  const { email, password } = req.body;
 
+  // Find the user by email
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(400).json({ message: 'User not found' });
+  }
+
+  // Compare the provided password with the stored hashed password
   const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+  if (!isMatch) {
+    return res.status(400).json({ message: 'Invalid credentials' });
+  }
 
-  const token = jwt.sign({ id: user._id }, 'YOUR_SECRET_KEY'); // Use a secure key in production
-  res.json({ token });
+  // Store email in session (mock session here for simplicity)
+  req.session = { email: user.email };
+
+  res.json({ message: 'Login successful', email: user.email });
 });
 
-// Middleware to authenticate the token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers['authorization']?.split(' ')[1];
-  if (!token) return res.sendStatus(401);
-  jwt.verify(token, 'YOUR_SECRET_KEY', (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user; // Save the user information in the request
-    next();
-  });
-});
+// Middleware to authenticate user
+const authenticateUser = (req, res, next) => {
+  if (!req.session || !req.session.email) {
+    return res.status(401).json({ message: 'Unauthorized access, please log in' });
+  }
+  next();
+};
 
-// Calculate endpoint
-app.post('/api/calculate', authenticateToken, async (req, res) => {
+// Calculate and store milk data
+app.post('/api/calculate', authenticateUser, async (req, res) => {
   const { date, morningLiters, eveningLiters, pricePerLiter } = req.body;
   const totalLiters = morningLiters.reduce((a, b) => a + b, 0) + eveningLiters.reduce((a, b) => a + b, 0);
   const totalPrice = totalLiters * pricePerLiter;
 
+  // Create a new milk record linked to the logged-in user's email
   const newMilkRecord = new Milk({
-    userId: req.user.id, // Save userId from the token
+    email: req.session.email, // Save user email from session
     date,
     morningLiters,
     eveningLiters,
@@ -93,19 +110,28 @@ app.post('/api/calculate', authenticateToken, async (req, res) => {
   res.json({ totalLiters, totalPrice });
 });
 
-// History endpoint
-app.get('/api/history', authenticateToken, async (req, res) => {
-  const history = await Milk.find({ userId: req.user.id }); // Fetch records for the logged-in user
+// Get history of milk records for the logged-in user
+app.get('/api/history', authenticateUser, async (req, res) => {
+  const email = req.session.email;
+
+  // Fetch records for the logged-in user based on their email
+  const history = await Milk.find({ email });
   res.json(history);
 });
 
-// Dashboard endpoint
-app.get('/api/dashboard', authenticateToken, async (req, res) => {
-  const history = await Milk.find({ userId: req.user.id });
+// Get dashboard data for the logged-in user
+app.get('/api/dashboard', authenticateUser, async (req, res) => {
+  const email = req.session.email;
+
+  // Fetch all records for the logged-in user
+  const history = await Milk.find({ email });
+
+  // Calculate total liters and revenue
   const totalLiters = history.reduce((acc, record) => {
     return acc + record.morningLiters.reduce((a, b) => a + b, 0) + record.eveningLiters.reduce((a, b) => a + b, 0);
   }, 0);
   const totalRevenue = history.reduce((acc, record) => acc + record.totalPrice, 0);
+
   res.json({ totalLiters, totalRevenue });
 });
 
