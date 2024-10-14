@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
+const session = require('express-session'); // Added session management
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,15 +23,15 @@ mongoose.connect(mongoUri, {
 
 // User schema
 const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true }, // Store the email
-  password: { type: String, required: true }, // Store the hashed password
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
 });
 
 const User = mongoose.model('User', userSchema);
 
 // Milk schema
 const milkSchema = new mongoose.Schema({
-  email: { type: String, required: true }, // Store the user email to link data to a user
+  email: { type: String, required: true },
   date: String,
   morningLiters: [Number],
   eveningLiters: [Number],
@@ -39,6 +40,14 @@ const milkSchema = new mongoose.Schema({
 });
 
 const Milk = mongoose.model('Milk', milkSchema);
+
+// Middleware for session management
+app.use(session({
+  secret: 'your_secret_key', // Change this to a random secret key for better security
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false }, // Set secure: true in production with HTTPS
+}));
 
 // User registration
 app.post('/api/register', async (req, res) => {
@@ -76,8 +85,8 @@ app.post('/api/login', async (req, res) => {
     return res.status(400).json({ message: 'Invalid credentials' });
   }
 
-  // Store email in session (mock session here for simplicity)
-  req.session = { email: user.email };
+  // Store email in session
+  req.session.email = user.email;
 
   res.json({ message: 'Login successful', email: user.email });
 });
@@ -98,7 +107,7 @@ app.post('/api/calculate', authenticateUser, async (req, res) => {
 
   // Create a new milk record linked to the logged-in user's email
   const newMilkRecord = new Milk({
-    email: req.session.email, // Save user email from session
+    email: req.session.email,
     date,
     morningLiters,
     eveningLiters,
@@ -113,8 +122,6 @@ app.post('/api/calculate', authenticateUser, async (req, res) => {
 // Get history of milk records for the logged-in user
 app.get('/api/history', authenticateUser, async (req, res) => {
   const email = req.session.email;
-
-  // Fetch records for the logged-in user based on their email
   const history = await Milk.find({ email });
   res.json(history);
 });
@@ -122,11 +129,8 @@ app.get('/api/history', authenticateUser, async (req, res) => {
 // Get dashboard data for the logged-in user
 app.get('/api/dashboard', authenticateUser, async (req, res) => {
   const email = req.session.email;
-
-  // Fetch all records for the logged-in user
   const history = await Milk.find({ email });
 
-  // Calculate total liters and revenue
   const totalLiters = history.reduce((acc, record) => {
     return acc + record.morningLiters.reduce((a, b) => a + b, 0) + record.eveningLiters.reduce((a, b) => a + b, 0);
   }, 0);
