@@ -43,7 +43,7 @@ const Milk = mongoose.model('Milk', milkSchema);
 
 // Middleware for session management
 app.use(session({
-  secret: 'your_secret_key', // Change this to a random secret key for better security
+  secret: 'siva1222', // Change this to a random secret key for better security
   resave: false,
   saveUninitialized: true,
   cookie: { secure: false }, // Set secure: true in production with HTTPS
