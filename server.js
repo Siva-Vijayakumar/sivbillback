@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
-const session = require('express-session'); // Added session management
+const session = require('express-session');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -119,23 +119,35 @@ app.post('/api/calculate', authenticateUser, async (req, res) => {
   res.json({ totalLiters, totalPrice });
 });
 
-// Get history of milk records for the logged-in user
+// Delete a specific milk record
+app.delete('/delete-bill/:id', authenticateUser, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await Milk.findByIdAndDelete(id);
+    if (result) {
+      res.status(200).json({ message: 'Bill deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Bill not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting bill', error });
+  }
+});
+
+// Retrieve user-specific milk history
 app.get('/api/history', authenticateUser, async (req, res) => {
-  const email = req.session.email;
-  const history = await Milk.find({ email });
+  const history = await Milk.find({ email: req.session.email });
   res.json(history);
 });
 
-// Get dashboard data for the logged-in user
+// Dashboard endpoint to get user-specific totals
 app.get('/api/dashboard', authenticateUser, async (req, res) => {
-  const email = req.session.email;
-  const history = await Milk.find({ email });
-
+  const history = await Milk.find({ email: req.session.email });
   const totalLiters = history.reduce((acc, record) => {
     return acc + record.morningLiters.reduce((a, b) => a + b, 0) + record.eveningLiters.reduce((a, b) => a + b, 0);
   }, 0);
+  
   const totalRevenue = history.reduce((acc, record) => acc + record.totalPrice, 0);
-
   res.json({ totalLiters, totalRevenue });
 });
 
