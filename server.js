@@ -5,13 +5,13 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const app = express();
-require('dotenv').config();
+require('dotenv').config(); // Ensure dotenv is called before using process.env
 
 console.log('Environment Variables:', {
-    GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: GOOGLE_CLIENT_SECRET,
-    CALLBACK_URL: CALLBACK_URL,
-    mongoUri: mongoUri,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    CALLBACK_URL: process.env.CALLBACK_URL,
+    mongoUri: process.env.mongoUri,
 });
 
 app.use(cors());
@@ -50,9 +50,9 @@ const User = mongoose.model('User', userSchema);
 
 // Passport configuration
 passport.use(new GoogleStrategy({
-    clientID: GOOGLE_CLIENT_ID,
-    clientSecret: GOOGLE_CLIENT_SECRET,
-    callbackURL: CALLBACK_URL,
+    clientID: process.env.GOOGLE_CLIENT_ID, // Use process.env to access environment variable
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET, // Use process.env to access environment variable
+    callbackURL: process.env.CALLBACK_URL, // Use process.env to access environment variable
 },
 async (accessToken, refreshToken, profile, done) => {
     // Check for existing user
@@ -141,7 +141,7 @@ app.get('/dashboard', async (req, res) => {
 });
 
 // Start server
-const port = 3000;
+const port = process.env.PORT || 3000; // Use environment variable for port, default to 3000
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
