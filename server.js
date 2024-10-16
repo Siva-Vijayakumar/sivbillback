@@ -31,20 +31,25 @@ const Milk = mongoose.model('Milk', milkSchema);
 
 // Google authentication
 passport.use(new GoogleTokenStrategy({
-    clientID: '772600296799-acupu3d25l1mmb8am12s87vjs6hu9no9.apps.googleusercontent.com', // Your Google Client ID
+    clientID: '772600296799-acupu3d25l1mmb8am12s87vjs6hu9no9.apps.googleusercontent.com',
 }, async (accessToken, refreshToken, email, done) => {
     try {
-        // You can use the email to find or create a user in your database
-        // const user = await User.findOrCreate({ email: email.payload.email });
-        done(null, email.payload);
+        done(null, email.payload); // Pass user info to req.user
     } catch (error) {
         done(error);
     }
 }));
 
-app.post('/auth/google/callback', passport.authenticate('google-id-token'), (req, res) => {
-    // Here you can create a session or return user info
-    res.json(req.user);
+// Route to initiate Google login
+app.post('/auth/google', async (req, res) => {
+    const { idToken } = req.body; // Extract idToken from the request body
+    passport.authenticate('google-id-token', (err, user) => {
+        if (err) {
+            return res.status(401).json({ error: 'Authentication failed', err });
+        }
+        // Successful authentication, send back user info
+        res.status(200).json(user);
+    })(req, res); // Pass req and res to authenticate function
 });
 
 // Calculate endpoint
@@ -69,7 +74,7 @@ app.post('/api/calculate', async (req, res) => {
 app.delete('/delete-bill/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await Milk.findByIdAndDelete(id); // Corrected from MilkBill to Milk
+        const result = await Milk.findByIdAndDelete(id);
         if (result) {
             res.status(200).json({ message: 'Bill deleted successfully' });
         } else {
