@@ -55,16 +55,18 @@ app.post('/auth/google', async (req, res) => {
 });
 
 // Callback route for Google authentication
+// Remove this in your backend
 app.get('/auth/google/callback', (req, res) => {
-    passport.authenticate('google-id-token', (err, user) => {
-        if (err) {
-            console.error('Authentication error:', err);
-            return res.status(401).json({ error: 'Authentication failed', err });
-        }
-        // Redirect to home screen after successful authentication
-        res.redirect('/home'); 
-    })(req, res);
+  passport.authenticate('google-id-token', (err, user) => {
+      if (err) {
+          console.error('Authentication error:', err);
+          return res.status(401).json({ error: 'Authentication failed', err });
+      }
+      // Just return a success response, no need to redirect
+      res.status(200).json(user);
+  })(req, res);
 });
+
 
 // Serve home route (for client-side routing)
 app.get('/home', (req, res) => {
