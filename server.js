@@ -1,10 +1,9 @@
-// server.js (or your main file)
+// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
-const User = require('./models/User'); // Adjust the path if necessary
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,6 +16,28 @@ mongoose.connect(process.env.mongoUri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
 });
+
+// Create User schema and model
+const userSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+});
+
+// Hash password method (using bcrypt)
+userSchema.methods.comparePassword = async function (candidatePassword) {
+    const bcrypt = require('bcrypt');
+    return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Pre-save hook to hash password
+userSchema.pre('save', async function (next) {
+    const bcrypt = require('bcrypt');
+    if (!this.isModified('password')) return next();
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+});
+
+const User = mongoose.model('User', userSchema);
 
 // Create a schema for milk records
 const milkSchema = new mongoose.Schema({
