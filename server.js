@@ -34,7 +34,6 @@ passport.use(new GoogleTokenStrategy({
     clientID: '772600296799-acupu3d25l1mmb8am12s87vjs6hu9no9.apps.googleusercontent.com',
 }, async (accessToken, refreshToken, email, done) => {
     try {
-        // You can handle user registration or retrieval here
         done(null, email.payload); // Pass user info to req.user
     } catch (error) {
         done(error);
@@ -43,31 +42,33 @@ passport.use(new GoogleTokenStrategy({
 
 // Route to authenticate with Google
 app.post('/auth/google', async (req, res) => {
-    console.log("Received request at /auth/google"); // Debug log
-    const { idToken } = req.body; // Extract idToken from the request body
+    console.log("Received request at /auth/google");
+    const { idToken } = req.body;
 
     passport.authenticate('google-id-token', (err, user) => {
         if (err) {
             console.error('Authentication error:', err);
             return res.status(401).json({ error: 'Authentication failed', err });
         }
-        // Successful authentication, send back user info
         res.status(200).json(user);
-    })(req, res); // Pass req and res to authenticate function
+    })(req, res);
 });
 
 // Callback route for Google authentication
-// Callback route for Google authentication
 app.get('/auth/google/callback', (req, res) => {
-  // Assuming you're using Passport.js
-  passport.authenticate('google-id-token', (err, user) => {
-      if (err) {
-          console.error('Authentication error:', err);
-          return res.status(401).json({ error: 'Authentication failed', err });
-      }
-      // Successful authentication, send back user info
-      res.status(200).json({ message: 'Authentication successful', user });
-  })(req, res);
+    passport.authenticate('google-id-token', (err, user) => {
+        if (err) {
+            console.error('Authentication error:', err);
+            return res.status(401).json({ error: 'Authentication failed', err });
+        }
+        // Redirect to home screen after successful authentication
+        res.redirect('/home'); 
+    })(req, res);
+});
+
+// Serve home route (for client-side routing)
+app.get('/home', (req, res) => {
+    res.send('Home Screen Loaded.'); // Can modify to integrate with React Native if necessary.
 });
 
 // Calculate endpoint
