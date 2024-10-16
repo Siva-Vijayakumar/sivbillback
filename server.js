@@ -46,7 +46,7 @@ const User = mongoose.model('User', userSchema);
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID, // Replace with your Google Client ID
     clientSecret: process.env.GOOGLE_CLIENT_SECRET, // Replace with your Google Client Secret
-    callbackURL: process.env.GOOGLE_CLIENT_URL, // Replace with your callback URL
+    callbackURL: process.env.CALLBACK_URL, // Replace with your callback URL
   },
   async (accessToken, refreshToken, profile, done) => {
     // Check for existing user
@@ -139,4 +139,5 @@ app.get('/dashboard', async (req, res) => {
 const port = 3000;
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+ 
 });
