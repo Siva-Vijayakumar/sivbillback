@@ -4,9 +4,9 @@ const cors = require('cors');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
-const app = express();
-require('dotenv').config(); // Ensure dotenv is called before using process.env
+require('dotenv').config(); // Load environment variables
 
+const app = express();
 console.log('Environment Variables:', {
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
@@ -14,20 +14,27 @@ console.log('Environment Variables:', {
     mongoUri: process.env.mongoUri,
 });
 
-app.use(cors());
+// Middleware
+app.use(cors({
+    origin: '*', // Allow requests from any origin
+    credentials: true,
+}));
 app.use(express.json());
-app.use(session({ secret: 'siva1222', resave: false, saveUninitialized: true }));
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'default_secret', // Use a secret from env variables
+    resave: false,
+    saveUninitialized: true,
+}));
 app.use(passport.initialize());
 app.use(passport.session());
 
 // MongoDB connection
 const mongoUri = process.env.mongoUri;
-
 mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.log('MongoDB connection error: ', err));
+    .catch(err => console.log('MongoDB connection error:', err));
 
-// Define schema for milk bills
+// Define schemas
 const milkSchema = new mongoose.Schema({
     date: String,
     totalLiters: Number,
@@ -37,7 +44,6 @@ const milkSchema = new mongoose.Schema({
 
 const MilkBill = mongoose.model('MilkBill', milkSchema);
 
-// User schema for storing Google user information
 const userSchema = new mongoose.Schema({
     googleId: String,
     displayName: String,
@@ -50,38 +56,44 @@ const User = mongoose.model('User', userSchema);
 
 // Passport configuration
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID, // Use process.env to access environment variable
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET, // Use process.env to access environment variable
-    callbackURL: process.env.CALLBACK_URL, // Use process.env to access environment variable
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.CALLBACK_URL,
 },
 async (accessToken, refreshToken, profile, done) => {
-    // Check for existing user
-    const existingUser = await User.findOne({ googleId: profile.id });
-    if (existingUser) {
-        return done(null, existingUser);
+    try {
+        const existingUser = await User.findOne({ googleId: profile.id });
+        if (existingUser) {
+            return done(null, existingUser);
+        }
+
+        const newUser = await new User({
+            googleId: profile.id,
+            displayName: profile.displayName,
+            firstName: profile.name.givenName,
+            lastName: profile.name.familyName,
+            image: profile.picture,
+        }).save();
+
+        done(null, newUser);
+    } catch (error) {
+        console.error('Error in Google Strategy:', error);
+        done(error, null); // Pass error to the done callback
     }
-    
-    // If not, create a new user
-    const newUser = await new User({
-        googleId: profile.id,
-        displayName: profile.displayName,
-        firstName: profile.name.givenName,
-        lastName: profile.name.familyName,
-        image: profile.picture,
-    }).save();
-    
-    done(null, newUser);
 }));
 
-// Serialize user into the session
 passport.serializeUser((user, done) => {
     done(null, user.id);
 });
 
-// Deserialize user from the session
 passport.deserializeUser(async (id, done) => {
-    const user = await User.findById(id);
-    done(null, user);
+    try {
+        const user = await User.findById(id);
+        done(null, user);
+    } catch (error) {
+        console.error('Error during user deserialization:', error);
+        done(error, null); // Handle errors during deserialization
+    }
 });
 
 // Auth routes
@@ -89,9 +101,12 @@ app.get('/auth/google', passport.authenticate('google', {
     scope: ['profile', 'email'],
 }));
 
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
-    // Successful authentication, redirect home or to a desired page
-    res.redirect('/'); // Change this to redirect to a specific page after login
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }),
+(req, res) => {
+    res.redirect('/'); // Redirect to a specific page after login
+}, (err, req, res, next) => {
+    console.error('Error during Google authentication:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err });
 });
 
 // API to get all milk bill records
@@ -100,8 +115,13 @@ app.get('/history', async (req, res) => {
         return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    const bills = await MilkBill.find({ userId: req.user.id });
-    res.json(bills);
+    try {
+        const bills = await MilkBill.find({ userId: req.user.id });
+        res.json(bills);
+    } catch (error) {
+        console.error('Error fetching milk bills:', error);
+        res.status(500).json({ message: 'Error fetching milk bills', error });
+    }
 });
 
 // API to create a new bill entry
@@ -112,9 +132,14 @@ app.post('/add-bill', async (req, res) => {
         return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    const newBill = new MilkBill({ date, totalLiters, totalAmount, userId: req.user.id });
-    await newBill.save();
-    res.json(newBill);
+    try {
+        const newBill = new MilkBill({ date, totalLiters, totalAmount, userId: req.user.id });
+        await newBill.save();
+        res.json(newBill);
+    } catch (error) {
+        console.error('Error saving bill:', error);
+        res.status(500).json({ message: 'Error saving bill', error });
+    }
 });
 
 // API to delete a specific bill by ID
@@ -128,20 +153,26 @@ app.delete('/delete-bill/:id', async (req, res) => {
             res.status(404).json({ message: 'Bill not found' });
         }
     } catch (error) {
+        console.error('Error deleting bill:', error);
         res.status(500).json({ message: 'Error deleting bill', error });
     }
 });
 
 // API to get a summary for the dashboard
 app.get('/dashboard', async (req, res) => {
-    const bills = await MilkBill.find();
-    const totalLiters = bills.reduce((sum, bill) => sum + bill.totalLiters, 0);
-    const totalAmount = bills.reduce((sum, bill) => sum + bill.totalAmount, 0);
-    res.json({ totalLiters, totalAmount });
+    try {
+        const bills = await MilkBill.find();
+        const totalLiters = bills.reduce((sum, bill) => sum + bill.totalLiters, 0);
+        const totalAmount = bills.reduce((sum, bill) => sum + bill.totalAmount, 0);
+        res.json({ totalLiters, totalAmount });
+    } catch (error) {
+        console.error('Error fetching dashboard summary:', error);
+        res.status(500).json({ message: 'Error fetching dashboard summary', error });
+    }
 });
 
 // Start server
-const port = process.env.PORT || 3000; // Use environment variable for port, default to 3000
+const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
