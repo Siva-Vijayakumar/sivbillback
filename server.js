@@ -1,13 +1,21 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const session = require('express-session');
 const app = express();
+require('dotenv').config();
+
 
 app.use(cors());
 app.use(express.json());
+app.use(session({ secret: 'siva1222', resave: false, saveUninitialized: true }));
+app.use(passport.initialize());
+app.use(passport.session());
 
-// Replace the <username>, <password>, and <dbname> in the URL with your actual MongoDB Atlas values.
-const mongoUri = 'mongodb+srv://sivbill_company:siva1222@cluster0.le65a.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+// Replace with your actual MongoDB Atlas values
+const mongoUri = process.env.mongoUri;
 
 mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('MongoDB Connected'))
@@ -18,20 +26,88 @@ const milkSchema = new mongoose.Schema({
   date: String,
   totalLiters: Number,
   totalAmount: Number,
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Reference to User
 });
 
 const MilkBill = mongoose.model('MilkBill', milkSchema);
 
+// User schema for storing Google user information
+const userSchema = new mongoose.Schema({
+  googleId: String,
+  displayName: String,
+  firstName: String,
+  lastName: String,
+  image: String,
+});
+
+const User = mongoose.model('User', userSchema);
+
+// Passport configuration
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID, // Replace with your Google Client ID
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET, // Replace with your Google Client Secret
+    callbackURL: Process.env.GOOGLE_CLIENT_URL, // Replace with your callback URL
+  },
+  async (accessToken, refreshToken, profile, done) => {
+    // Check for existing user
+    const existingUser = await User.findOne({ googleId: profile.id });
+    if (existingUser) {
+      return done(null, existingUser);
+    }
+    
+    // If not, create a new user
+    const newUser = await new User({
+      googleId: profile.id,
+      displayName: profile.displayName,
+      firstName: profile.name.givenName,
+      lastName: profile.name.familyName,
+      image: profile.picture,
+    }).save();
+    
+    done(null, newUser);
+  }
+));
+
+// Serialize user into the session
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+// Deserialize user from the session
+passport.deserializeUser(async (id, done) => {
+  const user = await User.findById(id);
+  done(null, user);
+});
+
+// Auth routes
+app.get('/auth/google', passport.authenticate('google', {
+  scope: ['profile', 'email'],
+}));
+
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
+  // Successful authentication, redirect home or to a desired page
+  res.redirect('/'); // Change this to redirect to a specific page after login
+});
+
 // API to get all milk bill records
 app.get('/history', async (req, res) => {
-  const bills = await MilkBill.find();
+  if (!req.user) {
+    return res.status(401).json({ message: 'User not authenticated' });
+  }
+
+  const bills = await MilkBill.find({ userId: req.user.id }); // Filter bills by userId
   res.json(bills);
 });
 
 // API to create a new bill entry
 app.post('/add-bill', async (req, res) => {
   const { date, totalLiters, totalAmount } = req.body;
-  const newBill = new MilkBill({ date, totalLiters, totalAmount });
+
+  if (!req.user) {
+    return res.status(401).json({ message: 'User not authenticated' });
+  }
+
+  const newBill = new MilkBill({ date, totalLiters, totalAmount, userId: req.user.id });
   await newBill.save();
   res.json(newBill);
 });
@@ -59,6 +135,7 @@ app.get('/dashboard', async (req, res) => {
   res.json({ totalLiters, totalAmount });
 });
 
+// Start server
 const port = 3000;
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
