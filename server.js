@@ -8,10 +8,10 @@ const app = express();
 require('dotenv').config();
 
 console.log('Environment Variables:', {
-    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-    CALLBACK_URL: process.env.CALLBACK_URL,
-    mongoUri: process.env.mongoUri,
+    GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: GOOGLE_CLIENT_SECRET,
+    CALLBACK_URL: CALLBACK_URL,
+    mongoUri: mongoUri,
 });
 
 app.use(cors());
@@ -50,9 +50,9 @@ const User = mongoose.model('User', userSchema);
 
 // Passport configuration
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.CALLBACK_URL,
+    clientID: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
+    callbackURL: CALLBACK_URL,
 },
 async (accessToken, refreshToken, profile, done) => {
     // Check for existing user
