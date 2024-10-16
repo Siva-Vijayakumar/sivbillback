@@ -57,9 +57,17 @@ app.post('/auth/google', async (req, res) => {
 });
 
 // Callback route for Google authentication
+// Callback route for Google authentication
 app.get('/auth/google/callback', (req, res) => {
-    // Handle the callback after successful authentication
-    res.status(200).json({ message: 'Authentication successful', user: req.user });
+  // Assuming you're using Passport.js
+  passport.authenticate('google-id-token', (err, user) => {
+      if (err) {
+          console.error('Authentication error:', err);
+          return res.status(401).json({ error: 'Authentication failed', err });
+      }
+      // Successful authentication, send back user info
+      res.status(200).json({ message: 'Authentication successful', user });
+  })(req, res);
 });
 
 // Calculate endpoint
