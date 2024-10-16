@@ -13,17 +13,17 @@ app.use(bodyParser.json());
 
 // MongoDB connection
 mongoose.connect(process.env.mongoUri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
 });
 
 // Create a schema
 const milkSchema = new mongoose.Schema({
-  date: String,
-  morningLiters: [Number],
-  eveningLiters: [Number],
-  pricePerLiter: Number,
-  totalPrice: Number,
+    date: String,
+    morningLiters: [Number],
+    eveningLiters: [Number],
+    pricePerLiter: Number,
+    totalPrice: Number,
 });
 
 // Create a model
@@ -54,6 +54,12 @@ app.post('/auth/google', async (req, res) => {
         // Successful authentication, send back user info
         res.status(200).json(user);
     })(req, res); // Pass req and res to authenticate function
+});
+
+// Callback route for Google authentication
+app.get('/auth/google/callback', (req, res) => {
+    // Handle the callback after successful authentication
+    res.status(200).json({ message: 'Authentication successful', user: req.user });
 });
 
 // Calculate endpoint
