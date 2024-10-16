@@ -22,7 +22,7 @@ mongoose.connect(process.env.mongoUri, {
 
 // Create User schema and model
 const userSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
 });
 
@@ -46,23 +46,23 @@ const User = mongoose.model('User', userSchema);
 
 // Register user
 app.post('/api/register', async (req, res) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
     // Validate input
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required' });
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
     }
 
     try {
-        const newUser = new User({ username, password });
+        const newUser = new User({ email, password });
         await newUser.save();
         return res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
         console.error('Registration error:', error);
         
-        // Check for duplicate username error
+        // Check for duplicate email error
         if (error.code === 11000) {
-            return res.status(400).json({ error: 'Username already exists' });
+            return res.status(400).json({ error: 'Email already exists' });
         }
 
         return res.status(500).json({ error: 'Registration failed. Please try again later.' });
@@ -71,15 +71,15 @@ app.post('/api/register', async (req, res) => {
 
 // Login user
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
     // Validate input
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required' });
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
     }
 
     try {
-        const user = await User.findOne({ username });
+        const user = await User.findOne({ email });
         if (!user || !(await user.comparePassword(password))) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
