@@ -1,110 +1,65 @@
-// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-// MongoDB connection
-mongoose.connect(process.env.mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+// Replace the <username>, <password>, and <dbname> in the URL with your actual MongoDB Atlas values.
+const mongoUri = 'mongodb+srv://sivbill_company:siva1222@cluster0.le65a.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
-// Create User schema and model
-const userSchema = new mongoose.Schema({
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB Connected'))
+  .catch(err => console.log('MongoDB connection error: ', err));
+
+// Define a schema for the milk bill data
+const milkSchema = new mongoose.Schema({
+  date: String,
+  totalLiters: Number,
+  totalAmount: Number,
 });
 
-// Hash password method (using bcrypt)
-userSchema.methods.comparePassword = async function (candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
-};
+const MilkBill = mongoose.model('MilkBill', milkSchema);
 
-// Pre-save hook to hash password
-userSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
-    try {
-        this.password = await bcrypt.hash(this.password, 10);
-        next();
-    } catch (error) {
-        next(error); // Pass the error to the next middleware
-    }
+// API to get all milk bill records
+app.get('/history', async (req, res) => {
+  const bills = await MilkBill.find();
+  res.json(bills);
 });
 
-const User = mongoose.model('User', userSchema);
-
-// Register user
-app.post('/api/register', async (req, res) => {
-    const { email, password } = req.body;
-
-    // Validate input
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    try {
-        const newUser = new User({ email, password });
-        await newUser.save();
-        return res.status(201).json({ message: 'User registered successfully' });
-    } catch (error) {
-        console.error('Registration error:', error);
-        
-        // Check for duplicate email error
-        if (error.code === 11000) {
-            return res.status(400).json({ error: 'Email already exists' });
-        }
-
-        return res.status(500).json({ error: 'Registration failed. Please try again later.' });
-    }
+// API to create a new bill entry
+app.post('/add-bill', async (req, res) => {
+  const { date, totalLiters, totalAmount } = req.body;
+  const newBill = new MilkBill({ date, totalLiters, totalAmount });
+  await newBill.save();
+  res.json(newBill);
 });
 
-// Login user
-app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
-
-    // Validate input
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
+// API to delete a specific bill by ID
+app.delete('/delete-bill/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await MilkBill.findByIdAndDelete(id);
+    if (result) {
+      res.status(200).json({ message: 'Bill deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Bill not found' });
     }
-
-    try {
-        const user = await User.findOne({ email });
-        if (!user || !(await user.comparePassword(password))) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
-        
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        res.json({ token });
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ error: 'Login failed. Please try again later.' });
-    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting bill', error });
+  }
 });
 
-// Middleware to authenticate user
-const auth = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.sendStatus(403);
-    
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403);
-        req.user = user; // Store user data for use in routes
-        next();
-    });
-};
+// API to get a summary for the dashboard
+app.get('/dashboard', async (req, res) => {
+  const bills = await MilkBill.find();
+  const totalLiters = bills.reduce((sum, bill) => sum + bill.totalLiters, 0);
+  const totalAmount = bills.reduce((sum, bill) => sum + bill.totalAmount, 0);
+  res.json({ totalLiters, totalAmount });
+});
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
